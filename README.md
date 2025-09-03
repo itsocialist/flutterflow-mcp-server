@@ -83,9 +83,12 @@ npm run build
 
 Once configured, restart Claude Desktop/VS Code and ask:
 - "List my FlutterFlow projects"
-- "Show me the components in project XYZ"
-- "Extract custom code from my app"
-- "What database collections do I have?"
+- "Show me the components in project **MyAppName**" 
+- "Extract custom code from **MyAppName**"
+- "What database collections are in **MyAppName**?"
+- "Find project details for **MyAppName**"
+
+> 💡 **Pro Tip**: You can use either project names ("MyApp") or project IDs - the server will automatically resolve project names to IDs!
 
 ## 🛠️ Development
 
@@ -151,9 +154,14 @@ Updates a FlutterFlow project with new YAML configuration.
 
 ### Component & Page Management
 
+**get_project_by_name**
+Finds a project by name and returns project details.
+- `projectName`: The FlutterFlow project name (case-insensitive)
+
 **get_components**
 Extracts and lists all custom components from a project.
 - `projectId`: The FlutterFlow project ID
+- `projectName` (alternative): The FlutterFlow project name
 
 **get_pages**
 Extracts and lists all pages with their routes and definitions.

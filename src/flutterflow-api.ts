@@ -60,6 +60,26 @@ export class FlutterFlowAPI {
     }
   }
 
+  async getProjectByName(projectName: string): Promise<Project | null> {
+    try {
+      const projects = await this.listProjects();
+      return projects.find(project => 
+        project.name.toLowerCase() === projectName.toLowerCase()
+      ) || null;
+    } catch (error) {
+      throw new Error(`Failed to find project by name: ${this.getErrorMessage(error)}`);
+    }
+  }
+
+  async getProjectIdByName(projectName: string): Promise<string | null> {
+    try {
+      const project = await this.getProjectByName(projectName);
+      return project ? project.projectId : null;
+    } catch (error) {
+      throw new Error(`Failed to get project ID by name: ${this.getErrorMessage(error)}`);
+    }
+  }
+
   async getProjectFiles(projectId: string): Promise<string[]> {
     try {
       const response = await this.client.post('/listPartitionedFileNames', {

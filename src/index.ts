@@ -24,6 +24,20 @@ const server = new Server(
 
 const flutterflowAPI = new FlutterFlowAPI();
 
+async function resolveProjectId(args: any): Promise<string> {
+  if (args.projectId) {
+    return args.projectId;
+  } else if (args.projectName) {
+    const projectId = await flutterflowAPI.getProjectIdByName(args.projectName);
+    if (!projectId) {
+      throw new Error(`Project not found: ${args.projectName}`);
+    }
+    return projectId;
+  } else {
+    throw new Error('Either projectId or projectName must be provided');
+  }
+}
+
 const tools: Tool[] = [
   {
     name: 'list_projects',
@@ -79,8 +93,26 @@ const tools: Tool[] = [
           type: 'string',
           description: 'The FlutterFlow project ID',
         },
+        projectName: {
+          type: 'string',
+          description: 'Alternative: The FlutterFlow project name (case-insensitive)',
+        },
       },
-      required: ['projectId'],
+      required: [],
+    },
+  },
+  {
+    name: 'get_project_by_name',
+    description: 'Find a FlutterFlow project by its name and get project details',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectName: {
+          type: 'string',
+          description: 'The FlutterFlow project name (case-insensitive)',
+        },
+      },
+      required: ['projectName'],
     },
   },
   {
@@ -360,8 +392,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ],
         };
 
+      case 'get_project_by_name':
+        const { projectName } = args as { projectName: string };
+        const project = await flutterflowAPI.getProjectByName(projectName);
+        if (!project) {
+          throw new Error(`Project not found: ${projectName}`);
+        }
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(project, null, 2),
+            },
+          ],
+        };
+
       case 'get_components':
-        const { projectId: componentsProjectId } = args as { projectId: string };
+        const componentsProjectId = await resolveProjectId(args);
         const componentsYaml = await flutterflowAPI.downloadProjectYAML(componentsProjectId);
         const componentsFiles = YamlUtils.decodeProjectYaml(componentsYaml);
         const components = YamlUtils.extractComponents(componentsFiles);
@@ -375,7 +422,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
 
       case 'get_pages':
-        const { projectId: pagesProjectId } = args as { projectId: string };
+        const pagesProjectId = await resolveProjectId(args);
         const pagesYaml = await flutterflowAPI.downloadProjectYAML(pagesProjectId);
         const pagesFiles = YamlUtils.decodeProjectYaml(pagesYaml);
         const pages = YamlUtils.extractPages(pagesFiles);
