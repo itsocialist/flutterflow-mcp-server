@@ -64,18 +64,16 @@ npm run build
    - Generate/copy your API token
    - **Note**: Requires a paid FlutterFlow subscription
 
-2. **Configure for Claude Desktop:**
-   ```bash
-   # Copy the example config
-   cp claude_desktop_config.json ~/.config/claude/claude_desktop_config.json
-   
-   # Edit and add your token
-   # Replace "YOUR_API_TOKEN_HERE" with your actual token
-   ```
+2. **Configure for your MCP client:**
 
-3. **Configure for Claude Code (VS Code):**
+   📖 **[Complete Setup Guide](MCP_CLIENT_SETUP.md)** for all supported clients:
+   - **Claude Code** (VS Code extension)
+   - **Claude Desktop**  
+   - **Cursor**
+   - **Windsurf**
+
+   **Quick Start - Claude Code:**
    ```bash
-   # Add MCP server
    claude mcp add flutterflow --env FLUTTERFLOW_API_TOKEN=your_token -- node /path/to/build/index.js
    ```
 
@@ -103,6 +101,15 @@ npm test
 npm run lint
 ```
 
+## 🎯 Supported MCP Clients
+
+| Client | Status | Setup Guide |
+|--------|--------|-------------|
+| **Claude Code** (VS Code) | ✅ Full Support | [Setup Guide](MCP_CLIENT_SETUP.md#-claude-code-vs-code-extension) |
+| **Claude Desktop** | ✅ Full Support | [Setup Guide](MCP_CLIENT_SETUP.md#️-claude-desktop) |
+| **Cursor** | ✅ Full Support | [Setup Guide](MCP_CLIENT_SETUP.md#-cursor) |
+| **Windsurf** | ✅ Full Support | [Setup Guide](MCP_CLIENT_SETUP.md#-windsurf) |
+
 ## 📁 Project Structure
 
 ```
@@ -112,8 +119,8 @@ flutterflow-mcp-server/
 │   ├── flutterflow-api.ts    # FlutterFlow API client
 │   └── yaml-utils.ts         # YAML parsing utilities
 ├── build/                    # Compiled JavaScript
+├── MCP_CLIENT_SETUP.md       # Comprehensive setup guide
 ├── claude_desktop_config.json # Example Claude Desktop config
-├── setup-claude-code.md      # Claude Code setup guide
 └── README.md
 ```
 
