@@ -18,8 +18,8 @@ const FileNamesResponseSchema = z.object({
 
 const ValidationResponseSchema = z.object({
   valid: z.boolean(),
-  errors: z.array(z.string()).optional(),
-  warnings: z.array(z.string()).optional(),
+  errors: z.array(z.string()).optional().default([]),
+  warnings: z.array(z.string()).optional().default([]),
 });
 
 type Project = z.infer<typeof ProjectSchema>;
