@@ -1,0 +1,33 @@
+{
+  "name": "flutterflow-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for FlutterFlow API integration",
+  "main": "build/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "keywords": [
+    "mcp",
+    "flutterflow",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@types/adm-zip": "^0.5.7",
+    "@types/js-yaml": "^4.0.9",
+    "adm-zip": "^0.5.16",
+    "axios": "^1.7.7",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "flutterflow": {
+      "command": "node",
+      "args": ["/Users/briandawson/workspace/flutterflow-mcp/build/index.js"],
+      "env": {
+        "FLUTTERFLOW_API_TOKEN": "YOUR_API_TOKEN_HERE"
+      }
+    }
+  }
+}
