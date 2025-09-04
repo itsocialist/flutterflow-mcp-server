@@ -5,7 +5,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
   Tool,
+  Resource,
 } from '@modelcontextprotocol/sdk/types.js';
 import { FlutterFlowAPI } from './flutterflow-api.js';
 import { YamlUtils } from './yaml-utils.js';
@@ -18,6 +21,7 @@ const server = new Server(
   {
     capabilities: {
       tools: {},
+      resources: {},
     },
   }
 );
@@ -169,6 +173,57 @@ const tools: Tool[] = [
         },
       },
       required: ['projectId'],
+    },
+  },
+  {
+    name: 'get_project_summary',
+    description: 'Get a lightweight summary of a FlutterFlow project without loading full YAML content',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'The FlutterFlow project ID',
+        },
+        projectName: {
+          type: 'string',
+          description: 'The FlutterFlow project name (alternative to projectId)',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_file_list_summary',
+    description: 'Get a list of files in the project with size information without downloading content',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'The FlutterFlow project ID',
+        },
+        projectName: {
+          type: 'string',
+          description: 'The FlutterFlow project name (alternative to projectId)',
+        },
+      },
+    },
+  },
+  {
+    name: 'diagnose_project',
+    description: 'Analyze project health and provide recommendations for large projects',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'The FlutterFlow project ID',
+        },
+        projectName: {
+          type: 'string',
+          description: 'The FlutterFlow project name (alternative to projectId)',
+        },
+      },
     },
   },
   {
@@ -407,6 +462,130 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ],
         };
 
+      case 'get_project_summary':
+        const summaryProjectId = await resolveProjectId(args);
+        try {
+          const projectFiles = await flutterflowAPI.getProjectFiles(summaryProjectId);
+          const summary = {
+            projectId: summaryProjectId,
+            totalFiles: projectFiles.length,
+            fileCategories: {
+              components: projectFiles.filter(f => f.includes('components')).length,
+              pages: projectFiles.filter(f => f.includes('pages')).length,
+              collections: projectFiles.filter(f => f.includes('collections')).length,
+              customCode: projectFiles.filter(f => f.includes('custom_code')).length,
+              other: projectFiles.filter(f => !['components', 'pages', 'collections', 'custom_code'].some(cat => f.includes(cat))).length,
+            },
+            recommendation: projectFiles.length > 50 ? 'Use summary endpoints for this large project' : 'Full YAML processing should work',
+          };
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(summary, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error getting project summary: ${error}`,
+              },
+            ],
+          };
+        }
+
+      case 'get_file_list_summary':
+        const fileListProjectId = await resolveProjectId(args);
+        try {
+          const projectFiles = await flutterflowAPI.getProjectFiles(fileListProjectId);
+          const fileList = {
+            projectId: fileListProjectId,
+            totalFiles: projectFiles.length,
+            files: projectFiles.map(file => ({
+              name: file,
+              category: file.includes('components') ? 'component' :
+                        file.includes('pages') ? 'page' :
+                        file.includes('collections') ? 'database' :
+                        file.includes('custom_code') ? 'custom_code' : 'other',
+            })),
+          };
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(fileList, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error getting file list: ${error}`,
+              },
+            ],
+          };
+        }
+
+      case 'diagnose_project':
+        const diagnoseProjectId = await resolveProjectId(args);
+        try {
+          const projectFiles = await flutterflowAPI.getProjectFiles(diagnoseProjectId);
+          const diagnosis = {
+            projectId: diagnoseProjectId,
+            health: 'analyzing...',
+            statistics: {
+              totalFiles: projectFiles.length,
+              componentFiles: projectFiles.filter(f => f.includes('components')).length,
+              pageFiles: projectFiles.filter(f => f.includes('pages')).length,
+              databaseFiles: projectFiles.filter(f => f.includes('collections')).length,
+              customCodeFiles: projectFiles.filter(f => f.includes('custom_code')).length,
+            },
+            recommendations: [] as string[],
+            estimatedSize: 'Estimating project size...',
+          };
+
+          // Add recommendations based on file count
+          if (projectFiles.length > 100) {
+            diagnosis.health = 'Large project - use summary endpoints';
+            diagnosis.recommendations.push('Use get_file_list_summary() instead of full content retrieval');
+            diagnosis.recommendations.push('Use get_project_summary() for overview');
+            diagnosis.recommendations.push('Consider processing in batches if updates needed');
+          } else if (projectFiles.length > 50) {
+            diagnosis.health = 'Medium project - some operations may be slow';
+            diagnosis.recommendations.push('Use summary endpoints for faster overview');
+            diagnosis.recommendations.push('Full YAML processing may work but could be slow');
+          } else {
+            diagnosis.health = 'Small project - all operations should work smoothly';
+            diagnosis.recommendations.push('All MCP tools should work without issues');
+          }
+
+          // Estimate size (rough approximation)
+          diagnosis.estimatedSize = `Approximately ${Math.round(projectFiles.length * 2)}KB based on ${projectFiles.length} files`;
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(diagnosis, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error diagnosing project: ${error}`,
+              },
+            ],
+          };
+        }
+
       case 'get_components':
         const componentsProjectId = await resolveProjectId(args);
         const componentsYaml = await flutterflowAPI.downloadProjectYAML(componentsProjectId);
@@ -626,6 +805,302 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ],
       isError: true,
     };
+  }
+});
+
+// Resource handlers
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  try {
+    const projects = await flutterflowAPI.listProjects();
+    const resources: Resource[] = [];
+
+    // Add project-level resources
+    for (const project of projects) {
+      resources.push({
+        uri: `flutterflow://projects/${project.projectId}`,
+        name: `${project.name} (Project)`,
+        description: `FlutterFlow project: ${project.name}`,
+        mimeType: 'application/json',
+      });
+
+      resources.push({
+        uri: `flutterflow://projects/${project.projectId}/summary`,
+        name: `${project.name} (Summary)`,
+        description: `Project summary for ${project.name}`,
+        mimeType: 'application/json',
+      });
+
+      resources.push({
+        uri: `flutterflow://projects/${project.projectId}/files`,
+        name: `${project.name} (Files)`,
+        description: `File list for ${project.name}`,
+        mimeType: 'application/json',
+      });
+
+      resources.push({
+        uri: `flutterflow://projects/${project.projectId}/components`,
+        name: `${project.name} (Components)`,
+        description: `Components in ${project.name}`,
+        mimeType: 'application/json',
+      });
+
+      resources.push({
+        uri: `flutterflow://projects/${project.projectId}/pages`,
+        name: `${project.name} (Pages)`,
+        description: `Pages in ${project.name}`,
+        mimeType: 'application/json',
+      });
+
+      resources.push({
+        uri: `flutterflow://projects/${project.projectId}/database`,
+        name: `${project.name} (Database)`,
+        description: `Database collections in ${project.name}`,
+        mimeType: 'application/json',
+      });
+
+      resources.push({
+        uri: `flutterflow://projects/${project.projectId}/diagnosis`,
+        name: `${project.name} (Health Check)`,
+        description: `Health diagnosis for ${project.name}`,
+        mimeType: 'application/json',
+      });
+    }
+
+    return { resources };
+  } catch (error) {
+    console.error('Error listing resources:', error);
+    return { resources: [] };
+  }
+});
+
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const { uri } = request.params;
+  
+  try {
+    const url = new URL(uri);
+    
+    if (url.protocol !== 'flutterflow:') {
+      throw new Error('Unsupported protocol');
+    }
+
+    const pathParts = url.pathname.split('/').filter(p => p);
+    
+    if (pathParts.length < 2 || pathParts[0] !== 'projects') {
+      throw new Error('Invalid resource path');
+    }
+
+    const projectId = pathParts[1];
+    const resourceType = pathParts[2] || 'project';
+
+    switch (resourceType) {
+      case 'project':
+        const projects = await flutterflowAPI.listProjects();
+        const project = projects.find(p => p.projectId === projectId);
+        if (!project) {
+          throw new Error(`Project not found: ${projectId}`);
+        }
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: 'application/json',
+              text: JSON.stringify(project, null, 2),
+            },
+          ],
+        };
+
+      case 'summary':
+        const projectFiles = await flutterflowAPI.getProjectFiles(projectId);
+        const summary = {
+          projectId,
+          totalFiles: projectFiles.length,
+          fileCategories: {
+            components: projectFiles.filter(f => f.includes('components')).length,
+            pages: projectFiles.filter(f => f.includes('pages')).length,
+            collections: projectFiles.filter(f => f.includes('collections')).length,
+            customCode: projectFiles.filter(f => f.includes('custom_code')).length,
+            other: projectFiles.filter(f => !['components', 'pages', 'collections', 'custom_code'].some(cat => f.includes(cat))).length,
+          },
+          recommendation: projectFiles.length > 50 ? 'Use summary endpoints for this large project' : 'Full YAML processing should work',
+        };
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: 'application/json',
+              text: JSON.stringify(summary, null, 2),
+            },
+          ],
+        };
+
+      case 'files':
+        const fileList = await flutterflowAPI.getProjectFiles(projectId);
+        const fileData = {
+          projectId,
+          totalFiles: fileList.length,
+          files: fileList.map(file => ({
+            name: file,
+            category: file.includes('components') ? 'component' :
+                      file.includes('pages') ? 'page' :
+                      file.includes('collections') ? 'database' :
+                      file.includes('custom_code') ? 'custom_code' : 'other',
+          })),
+        };
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: 'application/json',
+              text: JSON.stringify(fileData, null, 2),
+            },
+          ],
+        };
+
+      case 'components':
+        try {
+          const componentsYaml = await flutterflowAPI.downloadProjectYAML(projectId);
+          const componentsFiles = YamlUtils.decodeProjectYaml(componentsYaml);
+          const components = YamlUtils.extractComponents(componentsFiles);
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify(components, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          // Fallback to summary if YAML processing fails
+          const files = await flutterflowAPI.getProjectFiles(projectId);
+          const componentFiles = files.filter(f => f.includes('components'));
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify({
+                  error: 'Full component data unavailable due to size limitations',
+                  componentFiles,
+                  suggestion: 'Use get_file_list_summary or summary endpoints',
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+      case 'pages':
+        try {
+          const pagesYaml = await flutterflowAPI.downloadProjectYAML(projectId);
+          const pagesFiles = YamlUtils.decodeProjectYaml(pagesYaml);
+          const pages = YamlUtils.extractPages(pagesFiles);
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify(pages, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          // Fallback to summary if YAML processing fails
+          const files = await flutterflowAPI.getProjectFiles(projectId);
+          const pageFiles = files.filter(f => f.includes('pages'));
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify({
+                  error: 'Full page data unavailable due to size limitations',
+                  pageFiles,
+                  suggestion: 'Use get_file_list_summary or summary endpoints',
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+      case 'database':
+        try {
+          const dbYaml = await flutterflowAPI.downloadProjectYAML(projectId);
+          const dbFiles = YamlUtils.decodeProjectYaml(dbYaml);
+          const collections = YamlUtils.extractDatabaseCollections(dbFiles);
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify(collections, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          // Fallback to summary if YAML processing fails
+          const files = await flutterflowAPI.getProjectFiles(projectId);
+          const dbFiles = files.filter(f => f.includes('collections'));
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify({
+                  error: 'Full database data unavailable due to size limitations',
+                  collectionFiles: dbFiles,
+                  suggestion: 'Use get_file_list_summary or summary endpoints',
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+      case 'diagnosis':
+        const diagnosisFiles = await flutterflowAPI.getProjectFiles(projectId);
+        const diagnosis = {
+          projectId,
+          health: 'analyzing...',
+          statistics: {
+            totalFiles: diagnosisFiles.length,
+            componentFiles: diagnosisFiles.filter(f => f.includes('components')).length,
+            pageFiles: diagnosisFiles.filter(f => f.includes('pages')).length,
+            databaseFiles: diagnosisFiles.filter(f => f.includes('collections')).length,
+            customCodeFiles: diagnosisFiles.filter(f => f.includes('custom_code')).length,
+          },
+          recommendations: [] as string[],
+          estimatedSize: `Approximately ${Math.round(diagnosisFiles.length * 2)}KB based on ${diagnosisFiles.length} files`,
+        };
+
+        // Add recommendations based on file count
+        if (diagnosisFiles.length > 100) {
+          diagnosis.health = 'Large project - use summary endpoints';
+          diagnosis.recommendations.push('Use summary resources instead of full content');
+          diagnosis.recommendations.push('Access via flutterflow://projects/{id}/summary');
+          diagnosis.recommendations.push('Consider processing in batches if updates needed');
+        } else if (diagnosisFiles.length > 50) {
+          diagnosis.health = 'Medium project - some operations may be slow';
+          diagnosis.recommendations.push('Use summary resources for faster access');
+          diagnosis.recommendations.push('Full YAML processing may work but could be slow');
+        } else {
+          diagnosis.health = 'Small project - all operations should work smoothly';
+          diagnosis.recommendations.push('All MCP tools and resources should work without issues');
+        }
+
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: 'application/json',
+              text: JSON.stringify(diagnosis, null, 2),
+            },
+          ],
+        };
+
+      default:
+        throw new Error(`Unknown resource type: ${resourceType}`);
+    }
+  } catch (error) {
+    throw new Error(`Error reading resource ${uri}: ${error instanceof Error ? error.message : String(error)}`);
   }
 });
 

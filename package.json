@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node build/index.js",
+    "start": "node --max-old-space-size=4096 build/index.js",
     "dev": "tsx src/index.ts",
     "test": "jest",
     "test:watch": "jest --watch",

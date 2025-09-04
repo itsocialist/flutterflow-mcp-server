@@ -9,22 +9,54 @@ export interface ProjectYamlFiles {
 export class YamlUtils {
   static decodeProjectYaml(base64Content: string): ProjectYamlFiles {
     try {
+      console.log(`[YAML Decoder] Starting decode - Base64 length: ${base64Content.length} chars`);
+      
       const zipBuffer = Buffer.from(base64Content, 'base64');
+      console.log(`[YAML Decoder] Buffer created - Size: ${zipBuffer.length} bytes`);
+      
       const zip = new AdmZip(zipBuffer);
+      console.log(`[YAML Decoder] ZIP archive opened successfully`);
+      
       const entries = zip.getEntries();
+      console.log(`[YAML Decoder] Found ${entries.length} entries in ZIP`);
+      
       const files: ProjectYamlFiles = {};
+      let processedCount = 0;
 
-      entries.forEach((entry: any) => {
+      entries.forEach((entry: any, index: number) => {
         if (!entry.isDirectory && entry.entryName.endsWith('.yaml')) {
-          const content = entry.getData().toString('utf8');
-          const parsed = yaml.load(content);
-          files[entry.entryName] = parsed;
+          try {
+            console.log(`[YAML Decoder] Processing entry ${index + 1}/${entries.length}: ${entry.entryName} (${entry.header.size} bytes)`);
+            
+            const content = entry.getData().toString('utf8');
+            const parsed = yaml.load(content);
+            files[entry.entryName] = parsed;
+            processedCount++;
+          } catch (entryError) {
+            console.error(`[YAML Decoder] Failed to process ${entry.entryName}:`, entryError);
+            throw new Error(`Failed to process file ${entry.entryName}: ${entryError}`);
+          }
         }
       });
 
+      console.log(`[YAML Decoder] Successfully processed ${processedCount} YAML files`);
       return files;
-    } catch (error) {
-      throw new Error(`Failed to decode project YAML: ${error}`);
+    } catch (error: any) {
+      const errorDetails = {
+        message: error.message,
+        name: error.name,
+        code: error.code,
+        base64Length: base64Content.length,
+        bufferSize: base64Content ? Math.floor(base64Content.length * 0.75) : 0, // Approximate decoded size
+      };
+      
+      console.error('[YAML Decoder] Detailed error:', errorDetails);
+      
+      if (error.message.includes('Buffer') && error.message.includes('584')) {
+        throw new Error(`Buffer size limitation detected: Cannot process ZIP file of ${errorDetails.bufferSize} bytes. The MCP server has a 584-byte buffer limit. Try using summary endpoints instead, or contact support for large project handling.`);
+      }
+      
+      throw new Error(`Failed to decode project YAML: ${error.message}. Details: ${JSON.stringify(errorDetails)}`);
     }
   }
 
