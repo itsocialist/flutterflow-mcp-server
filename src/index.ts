@@ -16,7 +16,7 @@ import { YamlUtils } from './yaml-utils.js';
 const server = new Server(
   {
     name: 'flutterflow-mcp-server',
-    version: '1.0.0',
+    version: '0.1.0',
   },
   {
     capabilities: {
