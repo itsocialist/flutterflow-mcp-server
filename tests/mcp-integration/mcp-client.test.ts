@@ -16,8 +16,7 @@ import path from 'path';
 const SKIP_MCP_TESTS = !process.env.REAL_API || !process.env.FLUTTERFLOW_API_TOKEN;
 const TEST_PROJECT_NAME = process.env.TEST_PROJECT_NAME || 'MCP-Test-Project';
 
-describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
-  let serverProcess: ChildProcess;
+(SKIP_MCP_TESTS ? describe.skip : describe)('MCP Client Integration Tests', () => {
   let client: Client;
   let transport: StdioClientTransport;
 
@@ -35,21 +34,16 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
       throw new Error('MCP server not built. Run: npm run build');
     }
 
-    // Start the MCP server as a subprocess
+    // Create transport and client (SDK will manage the subprocess)
     console.log('Starting MCP server...');
-    serverProcess = spawn('node', [serverPath], {
+    transport = new StdioClientTransport({
+      command: 'node',
+      args: [serverPath],
       env: {
         ...process.env,
         FLUTTERFLOW_API_TOKEN: process.env.FLUTTERFLOW_API_TOKEN,
       },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    // Create transport and client
-    transport = new StdioClientTransport({
-      readable: serverProcess.stdout!,
-      writable: serverProcess.stdin!,
-    });
+    } as any);
 
     client = new Client({
       name: 'mcp-integration-test',
@@ -74,21 +68,13 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
         console.warn('Error closing client:', error);
       }
     }
-
-    if (serverProcess && !serverProcess.killed) {
-      serverProcess.kill('SIGTERM');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (!serverProcess.killed) {
-        serverProcess.kill('SIGKILL');
-      }
-    }
   }, 10000);
 
   describe('MCP Protocol Communication', () => {
     it('should list available tools', async () => {
-      const response = await client.request(
-        { method: 'tools/list' },
-        {}
+      const response: any = await client.request(
+        { method: 'tools/list', params: {} } as any,
+        {} as any
       );
 
       expect(response.tools).toBeDefined();
@@ -107,12 +93,12 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
     }, 10000);
 
     it('should call list_projects tool', async () => {
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'list_projects',
           arguments: {},
-        }
+        } } as any,
+        {} as any
       );
 
       expect(response.content).toBeDefined();
@@ -129,14 +115,14 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
     }, 15000);
 
     it('should call get_project_by_name tool', async () => {
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'get_project_by_name',
           arguments: {
             projectName: TEST_PROJECT_NAME,
           },
-        }
+        } } as any,
+        {} as any
       );
 
       expect(response.content).toBeDefined();
@@ -156,12 +142,12 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
 
     beforeAll(async () => {
       // Get test project ID via MCP
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'get_project_by_name',
           arguments: { projectName: TEST_PROJECT_NAME },
-        }
+        } } as any,
+        {} as any
       );
 
       const project = JSON.parse(response.content[0].text);
@@ -169,29 +155,29 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
     });
 
     it('should get project files via MCP', async () => {
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'get_project_files',
           arguments: { projectId: testProjectId },
-        }
+        } } as any,
+        {} as any
       );
 
       const files = JSON.parse(response.content[0].text);
       expect(Array.isArray(files)).toBe(true);
       expect(files.length).toBeGreaterThan(0);
-      expect(files).toContain('app-state.yaml');
+      expect(files).toContain('app-details'); // FlutterFlow uses partition names
 
       console.log(`Project has ${files.length} files via MCP`);
     }, 15000);
 
     it('should get components using project name via MCP', async () => {
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'get_components',
           arguments: { projectName: TEST_PROJECT_NAME }, // Using name instead of ID
-        }
+        } } as any,
+        {} as any
       );
 
       const components = JSON.parse(response.content[0].text);
@@ -207,12 +193,12 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
     }, 20000);
 
     it('should get pages using project name via MCP', async () => {
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'get_pages',
           arguments: { projectName: TEST_PROJECT_NAME },
-        }
+        } } as any,
+        {} as any
       );
 
       const pages = JSON.parse(response.content[0].text);
@@ -227,12 +213,12 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
     }, 20000);
 
     it('should get custom code via MCP', async () => {
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'get_custom_code',
           arguments: { projectName: TEST_PROJECT_NAME },
-        }
+        } } as any,
+        {} as any
       );
 
       const customCode = JSON.parse(response.content[0].text);
@@ -247,12 +233,12 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
     }, 20000);
 
     it('should get database collections via MCP', async () => {
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'get_database_collections',
           arguments: { projectName: TEST_PROJECT_NAME },
-        }
+        } } as any,
+        {} as any
       );
 
       const collections = JSON.parse(response.content[0].text);
@@ -267,12 +253,12 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
     }, 20000);
 
     it('should get app state via MCP', async () => {
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'get_app_state',
           arguments: { projectName: TEST_PROJECT_NAME },
-        }
+        } } as any,
+        {} as any
       );
 
       const appState = JSON.parse(response.content[0].text);
@@ -291,12 +277,12 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
 
   describe('Error Handling via MCP', () => {
     it('should handle project not found via MCP', async () => {
-      const response = await client.request(
-        { method: 'tools/call' },
-        {
+      const response: any = await client.request(
+        { method: 'tools/call', params: {
           name: 'get_project_by_name',
           arguments: { projectName: 'NonExistentProject123' },
-        }
+        } } as any,
+        {} as any
       );
 
       expect(response).toHaveProperty('isError', true);
@@ -305,11 +291,11 @@ describe.skipIf(SKIP_MCP_TESTS)('MCP Client Integration Tests', () => {
 
     it('should handle invalid tool call via MCP', async () => {
       await expect(client.request(
-        { method: 'tools/call' },
-        {
+        { method: 'tools/call', params: {
           name: 'non_existent_tool',
           arguments: {},
-        }
+        } } as any,
+        {} as any
       )).rejects.toThrow();
     }, 10000);
   });

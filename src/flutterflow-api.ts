@@ -52,8 +52,26 @@ export class FlutterFlowAPI {
 
   async listProjects(): Promise<Project[]> {
     try {
-      const response = await this.client.get('/l/listProjects');
-      const parsed = ProjectsResponseSchema.parse(response.data);
+      const response = await this.client.post('/l/listProjects', {
+        project_type: 'ALL',
+        deserialize_response: true,
+      });
+      
+      // Parse the response which comes wrapped in a success/value structure
+      const responseData = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+      const projectsData = responseData.success ? JSON.parse(responseData.value) : responseData;
+      
+      // Transform the FlutterFlow API response to match our expected schema
+      const transformedData = {
+        entries: projectsData.entries.map((entry: any) => ({
+          projectId: entry.id,
+          name: entry.project.name,
+          description: entry.project.description || '',
+          metadata: entry.project,
+        }))
+      };
+      
+      const parsed = ProjectsResponseSchema.parse(transformedData);
       return parsed.entries;
     } catch (error) {
       throw new Error(`Failed to list projects: ${this.getErrorMessage(error)}`);
@@ -82,11 +100,15 @@ export class FlutterFlowAPI {
 
   async getProjectFiles(projectId: string): Promise<string[]> {
     try {
-      const response = await this.client.post('/listPartitionedFileNames', {
-        projectId,
-      });
-      const parsed = FileNamesResponseSchema.parse(response.data);
-      return parsed.fileNames;
+      const response = await this.client.get(`/listPartitionedFileNames?projectId=${projectId}`);
+      
+      // Handle the wrapped response format
+      const responseData = response.data;
+      if (responseData.success && responseData.value && responseData.value.file_names) {
+        return responseData.value.file_names;
+      } else {
+        throw new Error('Unexpected response format');
+      }
     } catch (error) {
       throw new Error(`Failed to get project files: ${this.getErrorMessage(error)}`);
     }
@@ -94,17 +116,18 @@ export class FlutterFlowAPI {
 
   async downloadProjectYAML(projectId: string, fileNames?: string[]): Promise<string> {
     try {
-      const requestBody: any = { projectId };
+      let url = `/projectYamls?projectId=${projectId}`;
       if (fileNames && fileNames.length > 0) {
-        requestBody.fileNames = fileNames;
+        const fileNamesParam = fileNames.join(',');
+        url += `&fileNames=${encodeURIComponent(fileNamesParam)}`;
       }
 
-      const response = await this.client.post('/projectYamls', requestBody);
+      const response = await this.client.get(url);
       
-      if (typeof response.data === 'string') {
-        return response.data;
-      } else if (response.data && typeof response.data.content === 'string') {
-        return response.data.content;
+      // Handle the wrapped response format
+      const responseData = response.data;
+      if (responseData.success && responseData.value && responseData.value.project_yaml_bytes) {
+        return responseData.value.project_yaml_bytes;
       } else {
         throw new Error('Unexpected response format');
       }
@@ -119,7 +142,24 @@ export class FlutterFlowAPI {
         projectId,
         yamlContent,
       });
-      return ValidationResponseSchema.parse(response.data);
+      
+      // Handle the wrapped response format
+      const responseData = response.data;
+      if (responseData.success) {
+        // FlutterFlow validation returns empty string on success, construct our response
+        return {
+          valid: true,
+          errors: [],
+          warnings: []
+        };
+      } else {
+        // If validation fails, parse the error
+        return {
+          valid: false,
+          errors: [responseData.reason || 'Validation failed'],
+          warnings: []
+        };
+      }
     } catch (error) {
       throw new Error(`Failed to validate project YAML: ${this.getErrorMessage(error)}`);
     }

@@ -21,7 +21,7 @@ const SKIP_CLAUDE_TESTS = !process.env.CLAUDE_CODE || !process.env.REAL_API || !
 const TEST_PROJECT_NAME = process.env.TEST_PROJECT_NAME || 'MCP-Test-Project';
 const VSCODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH || process.cwd();
 
-describe.skipIf(SKIP_CLAUDE_TESTS)('Claude Code Integration Tests', () => {
+(SKIP_CLAUDE_TESTS ? describe.skip : describe)('Claude Code Integration Tests', () => {
   let mcpConfigPath: string;
   let originalConfig: string | null = null;
 
